@@ -78,17 +78,18 @@ namespace media_functions_for_logic_app
 				return req.CreateResponse(HttpStatusCode.BadRequest, new { error = "Please pass the issuer value" });
 			}
 
-			string base64Secret = data.b64Secret;
-			string contentKeyDeliveryTypeString = data.ckdType;
-			string tokenTypeString = data.tokenType;
-			string audience = data.audience;
-			string issuer = data.issuer;
+			string base64Secret = data.b64Secret ?? string.Empty;
+			string contentKeyDeliveryTypeString = data.ckdType ?? string.Empty;
+			string tokenTypeString = data.tokenType ?? string.Empty;
+			string audience = data.audience ?? string.Empty;
+			string issuer = data.issuer ?? string.Empty;
 			string keyDeliveryConfiguration = data.keyDeliveryConfiguration;
 
 			byte[] tokenSecret;
 			try
 			{
 				tokenSecret = Convert.FromBase64String(base64Secret);
+				log.Info($"Token parsed from " + base64Secret + "!");
 			}
 			catch
 			{
@@ -117,6 +118,8 @@ namespace media_functions_for_logic_app
 					return req.CreateResponse(HttpStatusCode.BadRequest, new { error = "Please pass the content key delivery type (PlayReadyLicense, Widevine, or FairPlay)" });
 			}
 
+			log.Info($"Decided on {contentKeyDeliveryType.ToString()}!");
+
 			TokenType tokenType;
 			switch (tokenTypeString.Trim().ToUpper())
 			{
@@ -130,13 +133,24 @@ namespace media_functions_for_logic_app
 					return req.CreateResponse(HttpStatusCode.BadRequest, new { error = "Please pass the content key delivery type (PlayReadyLicense, Widevine, or FairPlay)" });
 			}
 
+			log.Info($"Decided on {tokenType.ToString()}!");
+
 			TokenClaim[] tokenClaims = data.tokenClaims;
+
+			int count = tokenClaims == null ? 0 : tokenClaims.Length;
+			log.Info($"Decided on {count} claim requirements!");
 
 			IContentKeyAuthorizationPolicyOption result;
 
 			try
 			{
+				log.Info($"Making auth policy!");
 				result = await GetTokenRestrictedAuthorizationPolicyAsync(tokenSecret, contentKeyDeliveryType, tokenType, audience, issuer, tokenClaims, keyDeliveryConfiguration);
+				log.Info($"Out of auth policy code");
+				if (result != null)
+				{
+					log.Info($"Made auth policy");
+				}
 			}
 			catch (Exception ex)
 			{
