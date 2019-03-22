@@ -79,6 +79,12 @@ namespace media_functions_for_logic_app
 			}
 
 			string base64Secret = data.b64Secret;
+			string contentKeyDeliveryTypeString = data.ckdType;
+			string tokenTypeString = data.tokenType;
+			string audience = data.audience;
+			string issuer = data.issuer;
+			string keyDeliveryConfiguration = data.keyDeliveryConfiguration;
+
 			byte[] tokenSecret;
 			try
 			{
@@ -89,7 +95,6 @@ namespace media_functions_for_logic_app
 				return req.CreateResponse(HttpStatusCode.BadRequest, new { error = base64Secret + "was not a valid base 64 string" });
 			}
 			
-			string contentKeyDeliveryTypeString = data.ckdType;
 			ContentKeyDeliveryType contentKeyDeliveryType;
 			switch (contentKeyDeliveryTypeString.Trim().ToUpper())
 			{
@@ -112,7 +117,6 @@ namespace media_functions_for_logic_app
 					return req.CreateResponse(HttpStatusCode.BadRequest, new { error = "Please pass the content key delivery type (PlayReadyLicense, Widevine, or FairPlay)" });
 			}
 
-			string tokenTypeString = data.tokenType;
 			TokenType tokenType;
 			switch (tokenTypeString.Trim().ToUpper())
 			{
@@ -126,16 +130,13 @@ namespace media_functions_for_logic_app
 					return req.CreateResponse(HttpStatusCode.BadRequest, new { error = "Please pass the content key delivery type (PlayReadyLicense, Widevine, or FairPlay)" });
 			}
 
-			string audience = data.audience;
-			string issuer = data.issuer;
-			TokenClaim[] tokenClaims = data.TokenClaims;
-			string keyDeliveryConfiguration = data.keyDeliveryConfiguration;
+			TokenClaim[] tokenClaims = data.tokenClaims;
 
 			IContentKeyAuthorizationPolicyOption result;
 
 			try
 			{
-				result = GetTokenRestrictedAuthorizationPolicy(tokenSecret, contentKeyDeliveryType, tokenType, audience, issuer, tokenClaims, keyDeliveryConfiguration);
+				result = await GetTokenRestrictedAuthorizationPolicyAsync(tokenSecret, contentKeyDeliveryType, tokenType, audience, issuer, tokenClaims, keyDeliveryConfiguration);
 			}
 			catch (Exception ex)
 			{
@@ -151,7 +152,7 @@ namespace media_functions_for_logic_app
 
 		}
 
-		private static IContentKeyAuthorizationPolicyOption GetTokenRestrictedAuthorizationPolicy(byte[] tokenSecret, ContentKeyDeliveryType ckdTypes, TokenType tokenType,
+		private static async Task<IContentKeyAuthorizationPolicyOption> GetTokenRestrictedAuthorizationPolicyAsync(byte[] tokenSecret, ContentKeyDeliveryType ckdTypes, TokenType tokenType,
 			string audience, string issuer, TokenClaim[] tokenClaims, string keyDeliveryConfiguration)
 		{
 			string tokenTemplateString = GenerateTokenRequirements(tokenSecret, tokenType, audience, issuer, tokenClaims);
@@ -183,7 +184,7 @@ namespace media_functions_for_logic_app
 					throw new NotSupportedException("We do not support " + ckdTypes.ToString());
 			}
 
-			return _context.ContentKeyAuthorizationPolicyOptions.Create(name, ckdTypes, restrictions, keyDeliveryConfiguration);
+			return await _context.ContentKeyAuthorizationPolicyOptions.CreateAsync(name, ckdTypes, restrictions, keyDeliveryConfiguration);
 		}
 
 		static private string GenerateTokenRequirements(byte[] tokenSecret, TokenType tokenType, string audience, string issuer, TokenClaim[] tokenClaims)
