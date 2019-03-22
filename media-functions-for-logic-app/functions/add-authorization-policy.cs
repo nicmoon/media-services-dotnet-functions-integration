@@ -135,7 +135,8 @@ namespace media_functions_for_logic_app
 
 			log.Info($"Decided on {tokenType.ToString()}!");
 
-			TokenClaim[] tokenClaims = data.tokenClaims;
+			string json = JsonConvert.SerializeObject(data.tokenClaims);
+			TokenClaim[] tokenClaims = JsonConvert.DeserializeObject<TokenClaim[]>(json);
 
 			int count = tokenClaims == null ? 0 : tokenClaims.Length;
 			log.Info($"Decided on {count} claim requirements!");
@@ -144,7 +145,7 @@ namespace media_functions_for_logic_app
 
 			try
 			{
-				log.Info($"Making auth policy!");
+				log.Info($"Making auth policy! {tokenSecret} {contentKeyDeliveryType.ToString()} {tokenType.ToString()} {audience} {issuer} {keyDeliveryConfiguration}");
 				result = await GetTokenRestrictedAuthorizationPolicyAsync(tokenSecret, contentKeyDeliveryType, tokenType, audience, issuer, tokenClaims, keyDeliveryConfiguration);
 				log.Info($"Out of auth policy code");
 				if (result != null)
