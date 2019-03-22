@@ -156,7 +156,7 @@ namespace media_functions_for_logic_app
 			}
 			catch (Exception ex)
 			{
-				string message = ex.Message + ((ex.InnerException != null) ? Environment.NewLine + MediaServicesHelper.GetErrorMessage(ex) : "");
+				string message = ex.Message + ((ex.InnerException != null) ? Environment.NewLine + MediaServicesHelper.GetErrorMessage(ex) : "") + "\n" + ex.StackTrace;
 				log.Info($"ERROR: Exception {message}");
 				return req.CreateResponse(HttpStatusCode.InternalServerError, new { error = message });
 			}
