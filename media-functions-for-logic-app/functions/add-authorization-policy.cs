@@ -36,8 +36,6 @@ namespace media_functions_for_logic_app
 {
 	public static class add_authorization_policy
 	{
-		private static CloudMediaContext _context = null;
-
 		[FunctionName("add-authorization-policy")]
 
 		public static async Task<object> Run([HttpTrigger(WebHookType = "genericJson")]HttpRequestMessage req, TraceWriter log)
@@ -200,12 +198,17 @@ namespace media_functions_for_logic_app
 					throw new NotSupportedException("We do not support " + ckdTypes.ToString());
 			}
 
-			return _context.ContentKeyAuthorizationPolicyOptions.Create(name, ckdTypes, restrictions, keyDeliveryConfiguration);
+			MediaServicesCredentials amsCredentials = new MediaServicesCredentials();
+			AzureAdTokenCredentials tokenCredentials = new AzureAdTokenCredentials(amsCredentials.AmsAadTenantDomain,
+					new AzureAdClientSymmetricKey(amsCredentials.AmsClientId, amsCredentials.AmsClientSecret),
+					AzureEnvironments.AzureCloudEnvironment);
+			AzureAdTokenProvider tokenProvider = new AzureAdTokenProvider(tokenCredentials);
+			CloudMediaContext context = new CloudMediaContext(amsCredentials.AmsRestApiEndpoint, tokenProvider);
+			return context.ContentKeyAuthorizationPolicyOptions.Create(name, ckdTypes, restrictions, keyDeliveryConfiguration);
 		}
 
 		static private string GenerateTokenRequirements(byte[] tokenSecret, TokenType tokenType, string audience, string issuer, TokenClaim[] tokenClaims)
 		{
-
 			TokenRestrictionTemplate template = new TokenRestrictionTemplate(tokenType)
 			{
 				PrimaryVerificationKey = new SymmetricVerificationKey(tokenSecret),
