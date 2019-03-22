@@ -147,7 +147,7 @@ namespace media_functions_for_logic_app
 			try
 			{
 				log.Info($"Making auth policy! {tokenSecret} {contentKeyDeliveryType.ToString()} {tokenType.ToString()} {audience} {issuer} {keyDeliveryConfiguration}");
-				result = await GetTokenRestrictedAuthorizationPolicyAsync(tokenSecret, contentKeyDeliveryType, tokenType, audience, issuer, tokenClaims, keyDeliveryConfiguration);
+				result = GetTokenRestrictedAuthorizationPolicy(tokenSecret, contentKeyDeliveryType, tokenType, audience, issuer, tokenClaims, keyDeliveryConfiguration);
 				log.Info($"Out of auth policy code");
 				if (result != null)
 				{
@@ -168,7 +168,7 @@ namespace media_functions_for_logic_app
 
 		}
 
-		private static async Task<IContentKeyAuthorizationPolicyOption> GetTokenRestrictedAuthorizationPolicyAsync(byte[] tokenSecret, ContentKeyDeliveryType ckdTypes, TokenType tokenType,
+		private static IContentKeyAuthorizationPolicyOption GetTokenRestrictedAuthorizationPolicy(byte[] tokenSecret, ContentKeyDeliveryType ckdTypes, TokenType tokenType,
 			string audience, string issuer, TokenClaim[] tokenClaims, string keyDeliveryConfiguration)
 		{
 			string tokenTemplateString = GenerateTokenRequirements(tokenSecret, tokenType, audience, issuer, tokenClaims);
@@ -200,7 +200,7 @@ namespace media_functions_for_logic_app
 					throw new NotSupportedException("We do not support " + ckdTypes.ToString());
 			}
 
-			return await _context.ContentKeyAuthorizationPolicyOptions.CreateAsync(name, ckdTypes, restrictions, keyDeliveryConfiguration);
+			return _context.ContentKeyAuthorizationPolicyOptions.Create(name, ckdTypes, restrictions, keyDeliveryConfiguration);
 		}
 
 		static private string GenerateTokenRequirements(byte[] tokenSecret, TokenType tokenType, string audience, string issuer, TokenClaim[] tokenClaims)
