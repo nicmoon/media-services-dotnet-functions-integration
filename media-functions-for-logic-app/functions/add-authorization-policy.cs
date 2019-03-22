@@ -27,6 +27,7 @@ using Microsoft.WindowsAzure.MediaServices.Client.ContentKeyAuthorization;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Threading.Tasks;
@@ -138,7 +139,7 @@ namespace media_functions_for_logic_app
 			string json = JsonConvert.SerializeObject(data.tokenClaims);
 			TokenClaim[] tokenClaims = JsonConvert.DeserializeObject<TokenClaim[]>(json);
 
-			int count = tokenClaims == null ? 0 : tokenClaims.Length;
+			string count = tokenClaims == null ? "<null>" : string.Join("$", tokenClaims.Select(x => x.ClaimType + "|" + x.ClaimValue));
 			log.Info($"Decided on {count} claim requirements!");
 
 			IContentKeyAuthorizationPolicyOption result;
