@@ -53,27 +53,27 @@ namespace media_functions_for_logic_app
 			dynamic data = JsonConvert.DeserializeObject(jsonContent);
 
 			// Validate input objects
-			if (data.b64Secret == null || string.IsNullOrEmpty(data.b64Secret))
+			if (data.b64Secret == null)
 			{
 				return req.CreateResponse(HttpStatusCode.BadRequest, new { error = "Please pass a base 64 symetric secret" });
 			}
 
-			if (data.ckdType == null || string.IsNullOrEmpty(data.ckdType))
+			if (data.ckdType == null)
 			{
 				return req.CreateResponse(HttpStatusCode.BadRequest, new { error = "Please pass the content key delivery type (PlayReadyLicense, Widevine, or FairPlay)" });
 			}
 
-			if (data.tokenType == null || string.IsNullOrEmpty(data.tokenType))
+			if (data.tokenType == null)
 			{
 				return req.CreateResponse(HttpStatusCode.BadRequest, new { error = "Please pass the token type (SWT or JWT)" });
 			}
 
-			if (data.audience == null || string.IsNullOrEmpty(data.audience))
+			if (data.audience == null)
 			{
 				return req.CreateResponse(HttpStatusCode.BadRequest, new { error = "Please pass the audience value" });
 			}
 
-			if (data.issuer == null || string.IsNullOrEmpty(data.issuer))
+			if (data.issuer == null)
 			{
 				return req.CreateResponse(HttpStatusCode.BadRequest, new { error = "Please pass the issuer value" });
 			}
