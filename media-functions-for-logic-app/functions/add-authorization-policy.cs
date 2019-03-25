@@ -44,7 +44,7 @@ namespace media_functions_for_logic_app
 
 		public static async Task<object> Run([HttpTrigger(WebHookType = "genericJson")]HttpRequestMessage req, TraceWriter log)
 		{
-			log.Info($"AMS v2 Function - CreateContentKeyAuthorizationPolicy was triggered!");
+			log.Info($"AMS v2 Function - Add Authorization Policy was triggered!");
 
 			string jsonContent = await req.Content.ReadAsStringAsync();
 

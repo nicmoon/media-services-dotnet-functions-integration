@@ -36,7 +36,7 @@ namespace media_functions_for_logic_app
 
 		public static async Task<object> Run([HttpTrigger(WebHookType = "genericJson")]HttpRequestMessage req, TraceWriter log)
 		{
-			log.Info($"AMS v2 Function - CreateContentKeyAuthorizationPolicy was triggered!");
+			log.Info($"AMS v2 Function - Add Asset Delivery Policy was triggered!");
 
 			string jsonContent = await req.Content.ReadAsStringAsync();
 
@@ -94,7 +94,7 @@ namespace media_functions_for_logic_app
 
 			return context.AssetDeliveryPolicies.Create(
 					"FairPlay AssetDeliveryPolicy",
-				AssetDeliveryPolicyType.DynamicCommonEncryption,
+				AssetDeliveryPolicyType.DynamicCommonEncryptionCbcs,
 				AssetDeliveryProtocol.HLS,
 				assetDeliveryPolicyConfiguration);
 		}
