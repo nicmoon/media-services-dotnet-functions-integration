@@ -254,7 +254,7 @@ namespace media_functions_for_logic_app
 				get
 				{
 					// Conver to uppercase and remove all spaces
-					switch (contentKey.ToUpper().Remove(' '))
+					switch (string.Join("", contentKey.ToUpper().Split(new string[] { " " }, StringSplitOptions.RemoveEmptyEntries)))
 					{
 						case "COMMONENCRYPTION":
 						case "CENC":
