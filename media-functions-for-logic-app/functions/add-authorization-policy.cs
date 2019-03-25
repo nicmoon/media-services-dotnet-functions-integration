@@ -121,11 +121,6 @@ namespace media_functions_for_logic_app
 			string audience = request.audience;
 			string issuer = request.issuer;
 
-			Guid keyId = Guid.NewGuid();
-			byte[] contentKey = GetRandomBuffer(16);
-			ContentKeyType keyType = request.ContentKeyType;
-			IContentKey key = context.ContentKeys.Create(keyId, contentKey, keyType.ToString() + " Key", keyType);
-
 			List<IContentKeyAuthorizationPolicyOption> authPolicyOptions = new List<IContentKeyAuthorizationPolicyOption>(request.config.Length);
 			List<ContentKeyDeliveryType> delTypes = new List<ContentKeyDeliveryType>(request.config.Length);
 
