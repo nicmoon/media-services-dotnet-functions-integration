@@ -63,7 +63,7 @@ namespace media_functions_for_logic_app
                 return req.CreateResponse(HttpStatusCode.BadRequest, new { error = "Please pass contentKeyAuthorizationPolicyId in the input object" });
 
             if (data.assetDeliveryPolicyId == null)
-                return req.CreateResponse(HttpStatusCode.BadRequest, new { error = "Please pass assetId in the input object" });
+                return req.CreateResponse(HttpStatusCode.BadRequest, new { error = "Please pass assetDeliveryPolicyId in the input object" });
 
             if (data.contentKeyType == null)
                 return req.CreateResponse(HttpStatusCode.BadRequest, new { error = "Please pass contentKeyType in the input object" });

@@ -6,12 +6,15 @@ This function creates an authorization policy for an asset with dynamic encrypti
 Input
 {
     b64Secret: string;                                         // the base 64 encoded token secret
-    ckdType: string;                                           // "PlayReadyLicense", "Widevine", or "FairPlay"
     tokenType: string;                                         // "JWT" or "SWT"
+	contentKey: string;                                        // "CENC", "CENCcbcs", or "AES"
     audience: string;                                          // Azure Token Audience Value
     issuer: string;                                            // - Azure Token Issuer Value
     tokenClaims: { ClaimType: string, ClaimValue: string }[];  // The token claims to validate
-    keyDeliveryConfiguration: string;                          // JSON/XML string of key delivery configuration
+	config: {
+		ckdType: string;                                       // "PlayReadyLicense", "Widevine", or "FairPlay"
+		keyDeliveryConfiguration: string;                      // JSON/XML string of key delivery configuration
+	}[];
 }
 
 Output
@@ -30,6 +33,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Security.Cryptography;
 using System.Threading.Tasks;
 
 namespace media_functions_for_logic_app
@@ -49,103 +53,39 @@ namespace media_functions_for_logic_app
 				return req.CreateResponse(HttpStatusCode.BadRequest, new { error = "Please pass a JSON request body" });
 			}
 
-			dynamic data = JsonConvert.DeserializeObject(jsonContent);
+			AuthorizationPolicyRequst data = JsonConvert.DeserializeObject<AuthorizationPolicyRequst>(jsonContent);
 
 			// Validate input objects
-			if (data.b64Secret == null)
+			if (string.IsNullOrEmpty(data.b64Secret))
 			{
 				return req.CreateResponse(HttpStatusCode.BadRequest, new { error = "Please pass a base 64 symetric secret" });
 			}
 
-			if (data.ckdType == null)
-			{
-				return req.CreateResponse(HttpStatusCode.BadRequest, new { error = "Please pass the content key delivery type (PlayReadyLicense, Widevine, or FairPlay)" });
-			}
-
-			if (data.tokenType == null)
+			if (string.IsNullOrEmpty(data.tokenType))
 			{
 				return req.CreateResponse(HttpStatusCode.BadRequest, new { error = "Please pass the token type (SWT or JWT)" });
 			}
 
-			if (data.audience == null)
+			if (string.IsNullOrEmpty(data.audience))
 			{
 				return req.CreateResponse(HttpStatusCode.BadRequest, new { error = "Please pass the audience value" });
 			}
 
-			if (data.issuer == null)
+			if (string.IsNullOrEmpty(data.issuer))
 			{
 				return req.CreateResponse(HttpStatusCode.BadRequest, new { error = "Please pass the issuer value" });
 			}
 
-			string base64Secret = data.b64Secret ?? string.Empty;
-			string contentKeyDeliveryTypeString = data.ckdType ?? string.Empty;
-			string tokenTypeString = data.tokenType ?? string.Empty;
-			string audience = data.audience ?? string.Empty;
-			string issuer = data.issuer ?? string.Empty;
-			string keyDeliveryConfiguration = data.keyDeliveryConfiguration;
-
-			byte[] tokenSecret;
-			try
+			if (data.config == null || data.config.Length < 1)
 			{
-				tokenSecret = Convert.FromBase64String(base64Secret);
-				log.Info($"Token parsed from " + base64Secret + "!");
-			}
-			catch
-			{
-				return req.CreateResponse(HttpStatusCode.BadRequest, new { error = base64Secret + "was not a valid base 64 string" });
-			}
-			
-			ContentKeyDeliveryType contentKeyDeliveryType;
-			switch (contentKeyDeliveryTypeString.Trim().ToUpper())
-			{
-				case "PLAYREADYLICENSE":
-					contentKeyDeliveryType = ContentKeyDeliveryType.PlayReadyLicense;
-					break;
-				case "WIDEVINE":
-					contentKeyDeliveryType = ContentKeyDeliveryType.Widevine;
-					break;
-				case "FAIRPLAY":
-					contentKeyDeliveryType = ContentKeyDeliveryType.FairPlay;
-					break;
-				case "NONE":
-					contentKeyDeliveryType = ContentKeyDeliveryType.None;
-					break;
-				case "BASELINEHTTP":
-					contentKeyDeliveryType = ContentKeyDeliveryType.BaselineHttp;
-					break;
-				default:
-					return req.CreateResponse(HttpStatusCode.BadRequest, new { error = "Please pass the content key delivery type (PlayReadyLicense, Widevine, or FairPlay)" });
+				return req.CreateResponse(HttpStatusCode.BadRequest, new { error = "Please pass the authorization option configuration" });
 			}
 
-			log.Info($"Decided on {contentKeyDeliveryType.ToString()}!");
-
-			TokenType tokenType;
-			switch (tokenTypeString.Trim().ToUpper())
-			{
-				case "SWT":
-					tokenType = TokenType.SWT;
-					break;
-				case "JWT":
-					tokenType = TokenType.JWT;
-					break;
-				default:
-					return req.CreateResponse(HttpStatusCode.BadRequest, new { error = "Please pass the content key delivery type (PlayReadyLicense, Widevine, or FairPlay)" });
-			}
-
-			log.Info($"Decided on {tokenType.ToString()}!");
-
-			string json = JsonConvert.SerializeObject(data.tokenClaims);
-			TokenClaim[] tokenClaims = JsonConvert.DeserializeObject<TokenClaim[]>(json);
-
-			string count = tokenClaims == null ? "<null>" : string.Join("$", tokenClaims.Select(x => x.ClaimType + "|" + x.ClaimValue));
-			log.Info($"Decided on {count} claim requirements!");
-
-			IContentKeyAuthorizationPolicyOption result;
+			IContentKeyAuthorizationPolicy result;
 
 			try
 			{
-				log.Info($"Making auth policy! {tokenSecret} {contentKeyDeliveryType.ToString()} {tokenType.ToString()} {audience} {issuer} {keyDeliveryConfiguration}");
-				result = GetTokenRestrictedAuthorizationPolicy(tokenSecret, contentKeyDeliveryType, tokenType, audience, issuer, tokenClaims, keyDeliveryConfiguration);
+				result = GetTokenRestrictedAuthorizationPolicy(log, data);
 				log.Info($"Out of auth policy code");
 				if (result != null)
 				{
@@ -166,8 +106,66 @@ namespace media_functions_for_logic_app
 
 		}
 
-		private static IContentKeyAuthorizationPolicyOption GetTokenRestrictedAuthorizationPolicy(byte[] tokenSecret, ContentKeyDeliveryType ckdTypes, TokenType tokenType,
-			string audience, string issuer, TokenClaim[] tokenClaims, string keyDeliveryConfiguration)
+		private static IContentKeyAuthorizationPolicy GetTokenRestrictedAuthorizationPolicy(TraceWriter log, AuthorizationPolicyRequst request)
+		{
+			MediaServicesCredentials amsCredentials = new MediaServicesCredentials();
+			AzureAdTokenCredentials tokenCredentials = new AzureAdTokenCredentials(amsCredentials.AmsAadTenantDomain,
+					new AzureAdClientSymmetricKey(amsCredentials.AmsClientId, amsCredentials.AmsClientSecret),
+					AzureEnvironments.AzureCloudEnvironment);
+			AzureAdTokenProvider tokenProvider = new AzureAdTokenProvider(tokenCredentials);
+			CloudMediaContext context = new CloudMediaContext(amsCredentials.AmsRestApiEndpoint, tokenProvider);
+
+			byte[] secret = request.tokenSecret;
+			TokenClaim[] tokenClaims = request.tokenClaims;
+			TokenType tokenType = request.TokenTypeEnum;
+			string audience = request.audience;
+			string issuer = request.issuer;
+
+			Guid keyId = Guid.NewGuid();
+			byte[] contentKey = GetRandomBuffer(16);
+			ContentKeyType keyType = request.ContentKeyType;
+			IContentKey key = context.ContentKeys.Create(keyId, contentKey, keyType.ToString() + " Key", keyType);
+
+			List<IContentKeyAuthorizationPolicyOption> authPolicyOptions = new List<IContentKeyAuthorizationPolicyOption>(request.config.Length);
+			List<ContentKeyDeliveryType> delTypes = new List<ContentKeyDeliveryType>(request.config.Length);
+
+			log.Info($"Prepared for auth policy loop on {request.config.Length} entries with: {(secret ?? new byte[0]).Length} long key; {(tokenClaims ?? new TokenClaim[0]).Length} claims; {tokenType.ToString()} {audience} {issuer}");
+
+			// return 
+			foreach (AuthorizationPolicyRequestTokenConfig d in request.config)
+			{
+				ContentKeyDeliveryType ckdType = d.ContentKeyDeliveryType;
+				delTypes.Add(ckdType);
+				log.Info($"Making auth policy option! {d.ContentKeyDeliveryType.ToString()} {d.keyDeliveryConfiguration}");
+				IContentKeyAuthorizationPolicyOption option = GetTokenRestrictedAuthorizationPolicyOption(context, secret, ckdType, tokenType, audience, issuer, tokenClaims, d.keyDeliveryConfiguration);
+				authPolicyOptions.Add(option);
+			}
+
+			log.Info($"Making policy container");
+			IContentKeyAuthorizationPolicy policy = context.ContentKeyAuthorizationPolicies.CreateAsync(string.Join(", ", delTypes.Select(x => x.ToString())) + " Authentication Policy").Result;
+
+			foreach (IContentKeyAuthorizationPolicyOption a in authPolicyOptions)
+			{
+				log.Info($"Adding policy " + a.Name);
+				policy.Options.Add(a);
+			}
+
+			return policy;
+		}
+
+		private static byte[] GetRandomBuffer(int size)
+		{
+			byte[] randomBytes = new byte[size];
+			using (RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider())
+			{
+				rng.GetBytes(randomBytes);
+			}
+
+			return randomBytes;
+		}
+
+		private static IContentKeyAuthorizationPolicyOption GetTokenRestrictedAuthorizationPolicyOption(CloudMediaContext context, byte[] tokenSecret,
+			ContentKeyDeliveryType ckdTypes, TokenType tokenType, string audience, string issuer, TokenClaim[] tokenClaims, string keyDeliveryConfiguration)
 		{
 			string tokenTemplateString = GenerateTokenRequirements(tokenSecret, tokenType, audience, issuer, tokenClaims);
 
@@ -198,12 +196,6 @@ namespace media_functions_for_logic_app
 					throw new NotSupportedException("We do not support " + ckdTypes.ToString());
 			}
 
-			MediaServicesCredentials amsCredentials = new MediaServicesCredentials();
-			AzureAdTokenCredentials tokenCredentials = new AzureAdTokenCredentials(amsCredentials.AmsAadTenantDomain,
-					new AzureAdClientSymmetricKey(amsCredentials.AmsClientId, amsCredentials.AmsClientSecret),
-					AzureEnvironments.AzureCloudEnvironment);
-			AzureAdTokenProvider tokenProvider = new AzureAdTokenProvider(tokenCredentials);
-			CloudMediaContext context = new CloudMediaContext(amsCredentials.AmsRestApiEndpoint, tokenProvider);
 			return context.ContentKeyAuthorizationPolicyOptions.Create(name, ckdTypes, restrictions, keyDeliveryConfiguration);
 		}
 
@@ -228,6 +220,88 @@ namespace media_functions_for_logic_app
 			}
 
 			return TokenRestrictionTemplateSerializer.Serialize(template);
+		}
+
+		private class AuthorizationPolicyRequst
+		{
+			public string b64Secret { get; set; }
+			public byte[] tokenSecret
+			{
+				get
+				{
+					return Convert.FromBase64String(b64Secret);
+				}
+			}
+			public string tokenType { get; set; }
+			public TokenType TokenTypeEnum
+			{
+				get
+				{
+					switch (tokenType.Trim().ToUpper())
+					{
+						case "SWT":
+							return TokenType.SWT;
+						case "JWT":
+							return TokenType.JWT;
+						default:
+							throw new FormatException((tokenType ?? "<null>") + " was not a valid token type; please pass JWT or SWT");
+					}
+				}
+			}
+			public string contentKey { get; set; }
+			public ContentKeyType ContentKeyType
+			{
+				get
+				{
+					// Conver to uppercase and remove all spaces
+					switch (contentKey.ToUpper().Remove(' '))
+					{
+						case "COMMONENCRYPTION":
+						case "CENC":
+							return ContentKeyType.CommonEncryption;
+						case "COMMONENCRYPTIONCBCS":
+						case "CENCCBCS":
+							return ContentKeyType.CommonEncryptionCbcs;
+						case "ENVELOPE":
+						case "AES":
+							return ContentKeyType.EnvelopeEncryption;
+						default:
+							throw new FormatException((contentKey ?? "<null>") + " was not a valid content key type; please pass CENC, CENCcbcs, or AES");
+					}
+				}
+			}
+			public string audience { get; set; }
+			public string issuer { get; set; }
+			public TokenClaim[] tokenClaims { get; set; }
+			public AuthorizationPolicyRequestTokenConfig[] config { get; set; }
+		}
+
+		private class AuthorizationPolicyRequestTokenConfig
+		{
+			public string ckdType { get; set; }
+			public ContentKeyDeliveryType ContentKeyDeliveryType
+			{
+				get
+				{
+					switch (ckdType.Trim().ToUpper())
+					{
+						case "PLAYREADY":
+						case "PLAYREADYLICENSE":
+							return ContentKeyDeliveryType.PlayReadyLicense;
+						case "WIDEVINE":
+							return ContentKeyDeliveryType.Widevine;
+						case "FAIRPLAY":
+							return ContentKeyDeliveryType.FairPlay;
+						case "NONE":
+							return ContentKeyDeliveryType.None;
+						case "BASELINEHTTP":
+							return ContentKeyDeliveryType.BaselineHttp;
+						default:
+							throw new FormatException((ckdType ?? "<null>") + " is not supported; pass PlayReadyLicense, Widevine, or FairPlay");
+					}
+				}
+			}
+			public string keyDeliveryConfiguration { get; set; }
 		}
 	}
 }
